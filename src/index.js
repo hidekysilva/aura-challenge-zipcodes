@@ -1,105 +1,42 @@
-const data = require("./data.json");
+const { processZipRequest } = require("./routes/zip");
 
 // lambda-like handler function
 module.exports.handler = async (event) => {
-  // do stuff...
+  const results = processEvent(event);
+  console.log(results.length);
   return "success";
 };
 
-const validateEventObject = (event) => {
-  const { httpMethod, path, queryStringParameters } = event;
-  if (!httpMethod || typeof httpMethod !== "string" || httpMethod !== "GET")
-    throw new Error("Invalid HTTP method");
-  if (!path || typeof path !== "string" || path !== "/zip")
-    throw new Error("Invalid API path");
-  return queryStringParameters;
+const processEvent = (event) => {
+  if (typeof event !== "object") throw new Error("event must be an object");
+  const { httpMethod, path } = event;
+  if (!path || typeof path !== "string")
+    throw new Error("path property of event must be a string");
+  if (!httpMethod || typeof httpMethod !== "string")
+    throw new Error("httpMethod property of event must be a string");
+  const routeNames = getAllRouteNames();
+  if (!routeNames.includes(path)) throw new Error(`Invalid API path ${path}`);
+  const { methods, processRequest } = getRouteProps(path);
+  if (!methods || !methods.includes(httpMethod))
+    throw new Error(`Invalid HTTP method ${httpMethod}`);
+  return processRequest(event);
 };
 
-const validateString = (value) => {
-  if (typeof value === "string" && value.length >= 3) return value;
-  throw new Error("Invalid param value");
-};
-
-const validateNumber = (value) => {
-  const parsedValue = parseFloat(value);
-  if (!isNaN(value)) return parsedValue;
-  throw new Error("Invalid param value");
-};
-
-const hasString = (value, match) => value.includes(match);
-
-const isInFloatRange = (value, match) => {
-  const floatValue = parseFloat(value);
-  return floatValue - 0.1 <= match && floatValue + 0.1 >= match;
-};
-
-const isInIntegerRange = (value, match) => {
-  const intValue = parseInt(value, 10) + 1;
-  return intValue * 0.9 <= match + 1 && intValue * 1.1 >= match + 1;
-};
-
-const paramTypes = [
+const routeTypes = [
   {
-    key: "zip",
-    value: null,
-    validate: validateString,
-    query: hasString,
-  },
-  {
-    key: "primary_city",
-    value: null,
-    validate: validateString,
-    query: hasString,
-  },
-  {
-    key: "county",
-    value: null,
-    validate: validateString,
-    query: hasString,
-  },
-  {
-    key: "latitude",
-    value: null,
-    validate: validateNumber,
-    query: isInFloatRange,
-  },
-  {
-    key: "logitude",
-    value: null,
-    validate: validateNumber,
-    query: isInFloatRange,
-  },
-  {
-    key: "estimated_population",
-    value: null,
-    validate: validateNumber,
-    query: isInIntegerRange,
+    name: "/zip",
+    methods: ["GET"],
+    processRequest: processZipRequest,
   },
 ];
 
-const validateQueryStringParams = (params) => {
-  if (!params || typeof params !== "object")
-    throw new Error("Invalid query params");
-  const validParams = [];
-  for (key in params) {
-    const builder = paramTypes.find((p) => p.key === key);
-    if (builder) {
-      builder.value = builder.validate(params[key]);
-      validParams.push(builder);
-    }
-  }
-  return validParams;
-};
+const getAllRouteNames = () => routeTypes.map((r) => r.name);
 
-const getRecords = (params) => {
-  const results = data.filter((d) => {
-    const conditions = params.map((p) => p.query(d[p.key], p.value));
-    return conditions.every((c) => c === true);
-  });
-  return results;
+const getRouteProps = (name) => {
+  const routes = routeTypes.find((r) => r.name === name);
+  if (!routes) return null;
+  return routes;
 };
-
-// need an object with: a key, a value and a find function
 
 /* 
   Data length 2296
@@ -127,6 +64,9 @@ const getRecords = (params) => {
 //   getRecords(validateQueryStringParams({ zip: "090", latitude: "42.0" }))
 // );
 
-console.log(getRecords(validateQueryStringParams({})).length);
+// console.log(
+//   getRecords(validateQueryStringParams({ zip: 0, estimated_population: 0 }))
+//     .length
+// );
 
 // console.log(getRecords({ zip: "0106", estimated_population: 0 }));

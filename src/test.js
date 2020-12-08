@@ -6,6 +6,8 @@ describe("basic tests", () => {
   });
 
   test("handler returns success", async () => {
-    await expect(handler()).resolves.toEqual("success");
+    await expect(
+      handler({ httpMethod: "GET", path: "/zip", queryStringParameters: {} })
+    ).resolves.toEqual("success");
   });
 });
